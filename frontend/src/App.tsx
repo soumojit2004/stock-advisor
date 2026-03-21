@@ -181,9 +181,10 @@ export default function App() {
 
         <div className="overflow-hidden rounded-xl border border-slate-700/80 bg-slate-900/40">
           {scoresLoading ? (
-            <div className="flex min-h-[240px] items-center justify-center py-16">
-              <Spinner />
-            </div>
+            <div className="flex min-h-[240px] flex-col items-center justify-center gap-3 py-16">
+            <Spinner />
+            <p className="text-xs text-slate-500 animate-pulse">Loading stocks — may take a moment on first load...</p>
+          </div>
           ) : scores.length === 0 ? (
             <div className="flex min-h-[240px] flex-col items-center justify-center gap-2 py-16 text-slate-500">
               <p className="text-lg font-medium text-slate-400">No stocks</p>
