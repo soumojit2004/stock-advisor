@@ -119,12 +119,8 @@ export default function App() {
               Stock Advisor
             </h1>
             <p className="text-xs text-slate-500">
-              by{' '}
-              <a href="https://www.instagram.com/syro.ig/" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-white transition-colors">syro</a>
-              {' · '}
-              <a href="https://www.instagram.com/syro.ig/" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-white transition-colors">Instagram</a>
-              {' · '}
-              <a href="https://www.linkedin.com/in/soumojitg" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-white transition-colors">LinkedIn</a>
+              made with 🧡 by{' '}
+              <span className="text-[#FF6E00]">Syro</span>
             </p>
           </div>
 
@@ -250,23 +246,18 @@ export default function App() {
 
       <footer className="border-t border-slate-700/80 bg-slate-900/50 py-4 px-4 sm:px-6 mt-6">
         <div className="mx-auto max-w-[1400px] flex items-center justify-between">
-          <p className="text-xs text-slate-600">
-            Built by{' '}
-            <a href="https://www.instagram.com/syro.ig/" target="_blank" rel="noopener noreferrer" className="text-slate-500 hover:text-white transition-colors">
-              Syro
-            </a>
-          </p>
           <div className="flex items-center gap-4">
-            <a href="https://docs.google.com/document/d/1Q_yVIUlCQjCcxXt-6Rj_oQOKghdG44gqPYHC2Qk8KI4/edit?usp=sharing" target="_blank" rel="noopener noreferrer" className="text-xs text-slate-600 hover:text-white transition-colors">
-              How to Use
-            </a>
-            <a href="https://www.instagram.com/syro.ig/" target="_blank" rel="noopener noreferrer" className="text-xs text-slate-600 hover:text-white transition-colors">
+            <span className="text-xs text-slate-500">Check out:</span>
+            <a href="https://www.instagram.com/syro.ig/" target="_blank" rel="noopener noreferrer" className="text-xs text-slate-300 underline underline-offset-2 hover:text-white transition-colors font-medium">
               Instagram
             </a>
-            <a href="https://www.linkedin.com/in/soumojitg" target="_blank" rel="noopener noreferrer" className="text-xs text-slate-600 hover:text-white transition-colors">
+            <a href="https://www.linkedin.com/in/soumojitg" target="_blank" rel="noopener noreferrer" className="text-xs text-slate-300 underline underline-offset-2 hover:text-white transition-colors font-medium">
               LinkedIn
             </a>
           </div>
+          <a href="https://docs.google.com/document/d/1Q_yVIUlCQjCcxXt-6Rj_oQOKghdG44gqPYHC2Qk8KI4/edit?usp=sharing" target="_blank" rel="noopener noreferrer" className="text-xs text-slate-300 underline underline-offset-2 hover:text-white transition-colors font-medium">
+            How to Use
+          </a>
         </div>
       </footer>
     </div>
