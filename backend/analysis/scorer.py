@@ -367,7 +367,13 @@ def main() -> None:
                     ]
                 )
                 tech, rsi_v, pv50, pv200, entry, last_s50 = technical_from_prices(df)
-                stop = last_s50 * 0.98 if last_s50 is not None else None
+                if last_s50 is not None and entry is not None:
+                    stop_50 = last_s50 * 0.98
+                    stop = stop_50 if stop_50 < entry else entry * 0.93
+                elif entry is not None:
+                    stop = entry * 0.93
+                else:
+                    stop = None
 
             final = 0.5 * bscore + 0.25 * vscore + 0.25 * tech
             wl = watch_by_ticker.get(ticker, False)
