@@ -2,7 +2,7 @@ import axios from 'axios'
 import { useEffect, useState } from 'react'
 import type { ScoreItem, SummaryResponse } from './types'
 
-const API_BASE = 'http://localhost:8000'
+const API_BASE = 'https://stock-advisor-sw3d.onrender.com'
 
 type VerdictTab = 'BUY' | 'WATCHLIST' | 'AVOID'
 
