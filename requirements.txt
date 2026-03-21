@@ -1,0 +1,10 @@
+yfinance
+SQLAlchemy
+python-dotenv
+beautifulsoup4
+requests
+pandas
+psycopg[binary]
+fastapi
+uvicorn[standard]
+pydantic

@@ -1,0 +1,9 @@
+This is a stock analysis tool for Indian equities (NSE/BSE).
+Stack: Python + FastAPI backend, React frontend.
+Data: yfinance for price data, Screener.in scraping for fundamentals.
+Database: SQLite with SQLAlchemy ORM.
+Always use pandas for data manipulation, pandas-ta for technical indicators.
+Prefer explicit, readable code over clever one-liners.
+All monetary values in INR. All dates in IST.
+Target universe: Nifty 500 excluding Nifty 50 (mid + small cap).
+Holding period assumption: 3-6 months (balanced fundamental + technical scoring).
