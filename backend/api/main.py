@@ -65,6 +65,7 @@ class ScoreItem(BaseModel):
     valuation_score: float | None
     technical_score: float | None
     entry_price: float | None
+    target_price: float | None
     stop_loss: float | None
     risk_reward: float | None
     rsi: float | None
@@ -104,6 +105,7 @@ def _to_score_item(ss: StockScore, fund: Fundamentals, scr: ScreenedStock) -> Sc
         valuation_score=ss.valuation_score,
         technical_score=ss.technical_score,
         entry_price=ss.entry_price,
+        target_price=round(ss.entry_price * 1.15, 2) if ss.entry_price else None,
         stop_loss=ss.stop_loss,
         risk_reward=ss.risk_reward,
         rsi=ss.rsi,

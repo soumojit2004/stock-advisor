@@ -7,6 +7,7 @@ export interface ScoreItem {
   valuation_score: number | null
   technical_score: number | null
   entry_price: number | null
+  target_price: number | null;
   stop_loss: number | null
   risk_reward: number | null
   rsi: number | null

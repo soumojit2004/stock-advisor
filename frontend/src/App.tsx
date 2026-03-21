@@ -215,6 +215,9 @@ export default function App() {
                       Entry (₹)
                     </th>
                     <th className="whitespace-nowrap px-3 py-3 font-medium">
+                      Target (₹)
+                    </th>
+                    <th className="whitespace-nowrap px-3 py-3 font-medium">
                       Stop Loss (₹)
                     </th>
                     <th className="whitespace-nowrap px-3 py-3 font-medium">
@@ -270,6 +273,9 @@ export default function App() {
                       </td>
                       <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-300">
                         {fmt(row.entry_price)}
+                      </td>
+                      <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-[#FF6E00]">
+                        {fmt(row.target_price)}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-300">
                         {fmt(row.stop_loss)}
