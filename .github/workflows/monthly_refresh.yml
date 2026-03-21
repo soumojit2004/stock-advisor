@@ -1,0 +1,29 @@
+name: Monthly Fundamentals Refresh
+
+on:
+  schedule:
+    - cron: '0 0 1 * *'     # 1st of every month 5:30am IST
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Fetch fundamentals
+        run: python -m backend.data.fetch_fundamentals
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Run quality filter
+        run: python -m backend.analysis.quality_filter
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Run scorer
+        run: python -m backend.analysis.scorer
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
