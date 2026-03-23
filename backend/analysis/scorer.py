@@ -307,9 +307,16 @@ def risk_reward_ratio(entry: float | None, stop: float | None) -> float | None:
 
 
 def main() -> None:
-    db_path = _resolve_db_path()
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    engine = create_engine(f"sqlite:///{db_path}")
+    from os import getenv
+    database_url = getenv("DATABASE_URL")
+    if database_url:
+        if database_url.startswith("postgresql://"):
+            database_url = "postgresql+psycopg://" + database_url.removeprefix("postgresql://")
+        engine = create_engine(database_url)
+    else:
+        db_path = _resolve_db_path()
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        engine = create_engine(f"sqlite:///{db_path}")
     Base.metadata.create_all(engine)
 
     with Session(engine) as session:
