@@ -8,6 +8,8 @@ on:
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
     steps:
       - uses: actions/checkout@v4
 
@@ -19,22 +21,10 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Debug env
-        run: |
-          python -c "import os; url = os.getenv('DATABASE_URL', 'NOT SET'); print('DB URL prefix:', url[:30] if url != 'NOT SET' else 'NOT SET')"
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-
-      - name: Check DB connection
-        run: python check.py
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: python -c "import os; url = os.getenv('DATABASE_URL', 'NOT SET'); print('DB URL prefix:', url[:30] if url != 'NOT SET' else 'NOT SET')"
 
       - name: Fetch prices
         run: python -m backend.data.fetch_prices
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
 
       - name: Run scorer
         run: python -m backend.analysis.scorer
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
