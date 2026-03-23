@@ -2,7 +2,7 @@ name: Daily Price + Score Refresh
 
 on:
   schedule:
-    - cron: '0 11 * * 1-5'   # 4:30pm IST weekdays
+    - cron: '0 11 * * 1-5'
   workflow_dispatch:
 
 jobs:
