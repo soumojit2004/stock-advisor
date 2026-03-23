@@ -7,6 +7,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy import Boolean, DateTime, Float, String, create_engine, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 
@@ -125,7 +126,8 @@ def main() -> None:
                 "screened_at": datetime.utcnow(),
             }
 
-            stmt = sqlite_insert(ScreenedStock).values(values)
+            insert_fn = pg_insert if database_url else sqlite_insert
+            stmt = insert_fn(ScreenedStock).values(values)
             stmt = stmt.on_conflict_do_update(
                 index_elements=["ticker"],
                 set_={

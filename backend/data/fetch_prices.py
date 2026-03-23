@@ -7,6 +7,7 @@ import yfinance as yf
 from dotenv import load_dotenv
 from sqlalchemy import Date, Float, String, create_engine
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 from backend.data.universe import TICKERS
@@ -99,7 +100,8 @@ def main() -> None:
                     raise ValueError("Empty response")
 
                 records = _to_records(data, ticker)
-                stmt = sqlite_insert(PriceHistory).values(records)
+                insert_fn = pg_insert if database_url else sqlite_insert
+                stmt = insert_fn(PriceHistory).values(records)
                 stmt = stmt.on_conflict_do_update(
                     index_elements=["ticker", "date"],
                     set_={

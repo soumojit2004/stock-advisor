@@ -9,6 +9,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from sqlalchemy import Boolean, Date, DateTime, Float, String, create_engine, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 from backend.data.universe import SECTORS
@@ -411,7 +412,8 @@ def main() -> None:
                 "scored_at": datetime.utcnow(),
             }
 
-            stmt = sqlite_insert(StockScore).values(values)
+            insert_fn = pg_insert if database_url else sqlite_insert
+            stmt = insert_fn(StockScore).values(values)
             stmt = stmt.on_conflict_do_update(
                 index_elements=["ticker"],
                 set_={
