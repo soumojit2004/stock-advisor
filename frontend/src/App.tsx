@@ -47,7 +47,11 @@ export default function App() {
   const [summaryLoading, setSummaryLoading] = useState(true)
   const [summaryError, setSummaryError] = useState<string | null>(null)
 
-  const [scores, setScores] = useState<ScoreItem[]>([])
+  const [allScores, setAllScores] = useState<Record<VerdictTab, ScoreItem[]>>({
+    BUY: [],
+    WATCHLIST: [],
+    AVOID: [],
+  })
   const [scoresLoading, setScoresLoading] = useState(true)
   const [scoresError, setScoresError] = useState<string | null>(null)
 
@@ -83,12 +87,20 @@ export default function App() {
     let cancelled = false
     setScoresLoading(true)
     setScoresError(null)
-    axios
-      .get<ScoreItem[]>(`${API_BASE}/api/scores`, {
-        params: { verdict: activeTab },
-      })
-      .then((res) => {
-        if (!cancelled) setScores(res.data)
+
+    Promise.all([
+      axios.get<ScoreItem[]>(`${API_BASE}/api/scores`, { params: { verdict: 'BUY' } }),
+      axios.get<ScoreItem[]>(`${API_BASE}/api/scores`, { params: { verdict: 'WATCHLIST' } }),
+      axios.get<ScoreItem[]>(`${API_BASE}/api/scores`, { params: { verdict: 'AVOID' } }),
+    ])
+      .then(([buy, watchlist, avoid]) => {
+        if (!cancelled) {
+          setAllScores({
+            BUY: buy.data,
+            WATCHLIST: watchlist.data,
+            AVOID: avoid.data,
+          })
+        }
       })
       .catch((err: unknown) => {
         if (!cancelled) {
@@ -105,8 +117,9 @@ export default function App() {
         if (!cancelled) setScoresLoading(false)
       })
     return () => { cancelled = true }
-  }, [activeTab])
+  }, [])
 
+  const scores = allScores[activeTab]
   const tabs: VerdictTab[] = ['BUY', 'WATCHLIST', 'AVOID']
 
   return (
@@ -182,9 +195,9 @@ export default function App() {
         <div className="overflow-hidden rounded-xl border border-slate-700/80 bg-slate-900/40">
           {scoresLoading ? (
             <div className="flex min-h-[240px] flex-col items-center justify-center gap-3 py-16">
-            <Spinner />
-            <p className="text-xs text-slate-500 animate-pulse">Loading stocks — may take a moment on first load...</p>
-          </div>
+              <Spinner />
+              <p className="text-xs text-slate-500 animate-pulse">Loading stocks — may take a moment on first load...</p>
+            </div>
           ) : scores.length === 0 ? (
             <div className="flex min-h-[240px] flex-col items-center justify-center gap-2 py-16 text-slate-500">
               <p className="text-lg font-medium text-slate-400">No stocks</p>
