@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from sqlalchemy import DateTime, Float, String, create_engine
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 from backend.data.universe import TICKERS
@@ -181,9 +182,16 @@ def main() -> None:
     failed_path, logger = _setup_logging()
     failed_path.write_text("", encoding="utf-8")
 
-    db_path = _resolve_db_path()
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    engine = create_engine(f"sqlite:///{db_path}")
+    from os import getenv
+    database_url = getenv("DATABASE_URL")
+    if database_url:
+        if database_url.startswith("postgresql://"):
+            database_url = "postgresql+psycopg://" + database_url.removeprefix("postgresql://")
+        engine = create_engine(database_url)
+    else:
+        db_path = _resolve_db_path()
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        engine = create_engine(f"sqlite:///{db_path}")
     Base.metadata.create_all(engine)
 
     headers = {"User-Agent": USER_AGENT}
@@ -214,7 +222,8 @@ def main() -> None:
                     "roce": metrics.get("roce"),
                 }
 
-                stmt = sqlite_insert(Fundamentals).values(values)
+                insert_fn = pg_insert if database_url else sqlite_insert
+                stmt = insert_fn(Fundamentals).values(values)
                 stmt = stmt.on_conflict_do_update(
                     index_elements=["ticker"],
                     set_={
