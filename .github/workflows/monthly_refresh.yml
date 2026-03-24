@@ -1,4 +1,4 @@
-name: Weekly Quality Filter
+name: Monthly Quality Filter
 
 on:
   schedule:
