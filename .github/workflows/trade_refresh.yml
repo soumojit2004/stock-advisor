@@ -1,0 +1,31 @@
+name: Trade Signals Refresh
+
+on:
+  schedule:
+    - cron: '20 3 * * 1-5'   # 8:50 AM IST — pre-market
+    - cron: '15 11 * * 1-5'  # 4:45 PM IST — post-close
+  workflow_dispatch:
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Fetch market sentiment data
+        run: python backend/data/fetch_market_data.py
+
+      - name: Run trade scorer
+        run: python backend/analysis/trade_scorer.py
