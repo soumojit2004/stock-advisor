@@ -761,7 +761,7 @@ export default function App() {
               </div>
             )}
 
-            <div className="overflow-hidden rounded-xl border border-slate-700/80 bg-slate-900/40">
+            <div className="overflow-hidden rounded-xl bg-slate-900/40">
               {scoresLoading ? (
                 <div className="flex min-h-[240px] flex-col items-center justify-center gap-3 py-16">
                   <Spinner />
@@ -873,7 +873,7 @@ export default function App() {
               </div>
             )}
 
-            <div className="overflow-hidden rounded-xl border border-slate-700/80 bg-slate-900/40">
+            <div className="overflow-hidden rounded-xl bg-slate-900/40">
               {tradeLoading ? (
                 <div className="flex min-h-[240px] flex-col items-center justify-center gap-3 py-16">
                   <Spinner />
