@@ -235,22 +235,28 @@ def run_trade_scorer():
         else:
             verdict = "AVOID"
 
+        # Target % by signal type — decoupled from ATR so R/R is meaningful
+        TARGET_PCT = {
+            "BREAKOUT": 0.10,  # 10% - near 52W high, strong continuation expected
+            "MOMENTUM": 0.08,  # 8%  - trend intact, moderate move expected
+            "NEUTRAL":  0.06,  # 6%  - no clear signal, conservative
+        }
+
         # Trade parameters
         entry = round(float(latest["close"]), 2)
         atr14 = round(float(latest["atr14"]), 2) if not pd.isna(latest["atr14"]) else None
 
+        # Stop: ATR-based (adapts to stock's actual volatility)
         if atr14 and atr14 > 0:
             stop_loss = round(entry - (1.5 * atr14), 2)
-            target = round(entry + (2.0 * atr14), 2)
         else:
             stop_loss = round(entry * 0.94, 2)
-            target = round(entry * 1.10, 2)
 
-        rr = round((target - entry) / (entry - stop_loss), 2) if entry != stop_loss else None
-        near_52w_high = bool(
-            not pd.isna(latest["high_52w"]) and
-            ((latest["close"] - latest["high_52w"]) / latest["high_52w"]) >= -0.05
-        )
+        # Target: fixed % by signal type (meaningful expectation, not ATR multiple)
+        target_pct = TARGET_PCT.get(signal_type, 0.08)
+        target = round(entry * (1 + target_pct), 2)
+
+        rr = round((target - entry) / (entry - stop_loss), 2) if (entry - stop_loss) > 0 else None
 
         results.append({
             "ticker": ticker,

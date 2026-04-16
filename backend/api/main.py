@@ -263,10 +263,16 @@ def get_trade_checklist(ticker: str, price: float = 0, capital: float = 500000):
     m = dict(sentiment._mapping) if sentiment else {}
     f = dict(fund._mapping) if fund else {}
 
+    TARGET_PCT = {"BREAKOUT": 0.10, "MOMENTUM": 0.08, "NEUTRAL": 0.06}
+
     entry = price if price > 0 else (s.get("entry_price") or 0)
     atr = s.get("atr14") or 0
+    signal_type_val = s.get("signal_type") or "NEUTRAL"
+
     stop = round(entry - (1.5 * atr), 2) if atr and entry else round(entry * 0.94, 2)
-    target = round(entry + (2.0 * atr), 2) if atr and entry else round(entry * 1.10, 2)
+    target_pct = TARGET_PCT.get(signal_type_val, 0.08)
+    target = round(entry * (1 + target_pct), 2)
+
     stop_pct = round(((entry - stop) / entry) * 100, 2) if entry else 0
     rr = round((target - entry) / (entry - stop), 2) if entry and (entry - stop) > 0 else 0
     risk_per_trade = capital * 0.01

@@ -99,6 +99,7 @@ function SignalTypeBadge({ type }: { type: string | null }) {
   const cls: Record<string, string> = {
     BREAKOUT: 'bg-violet-500/15 text-violet-400',
     MOMENTUM: 'bg-blue-500/15 text-blue-400',
+    INVEST:   'bg-slate-600/60 text-slate-300',
     NEUTRAL:  'bg-slate-700/80 text-slate-400',
   }
   return (
@@ -116,12 +117,40 @@ function checkIcon(status: string): string {
 
 function overallBanner(overall: string): { bg: string; text: string; label: string } {
   switch (overall) {
-    case 'CLEAR':              return { bg: 'bg-emerald-500/15 border-emerald-500/30', text: 'text-emerald-400', label: '✅ Clear to trade' }
-    case 'CAUTION':            return { bg: 'bg-amber-500/15 border-amber-500/30',     text: 'text-amber-400',   label: '⚠️ Proceed with caution' }
-    case 'HIGH_RISK':          return { bg: 'bg-rose-500/15 border-rose-500/30',       text: 'text-rose-400',    label: '🚨 High risk — review all flags' }
-    case 'POOR_RISK_REWARD':   return { bg: 'bg-rose-500/15 border-rose-500/30',       text: 'text-rose-400',    label: '🚫 Poor risk/reward — do not trade' }
-    case 'MARKET_UNFAVOURABLE':return { bg: 'bg-rose-500/15 border-rose-500/30',       text: 'text-rose-400',    label: '🌧️ Market unfavourable — avoid new entries' }
-    default:                   return { bg: 'bg-slate-700/50 border-slate-600',        text: 'text-slate-400',   label: overall }
+    case 'CLEAR':               return { bg: 'bg-emerald-500/15 border-emerald-500/30', text: 'text-emerald-400', label: '✅ Clear to trade' }
+    case 'CAUTION':             return { bg: 'bg-amber-500/15 border-amber-500/30',     text: 'text-amber-400',   label: '⚠️ Proceed with caution' }
+    case 'HIGH_RISK':           return { bg: 'bg-rose-500/15 border-rose-500/30',       text: 'text-rose-400',    label: '🚨 High risk — review all flags' }
+    case 'POOR_RISK_REWARD':    return { bg: 'bg-rose-500/15 border-rose-500/30',       text: 'text-rose-400',    label: '🚫 Poor risk/reward — do not trade' }
+    case 'MARKET_UNFAVOURABLE': return { bg: 'bg-rose-500/15 border-rose-500/30',       text: 'text-rose-400',    label: '🌧️ Market unfavourable — avoid new entries' }
+    default:                    return { bg: 'bg-slate-700/50 border-slate-600',        text: 'text-slate-400',   label: overall }
+  }
+}
+
+// ─── BUILD SIGNAL FROM SCOREITEM ─────────────────────────────────────────────
+// Used when a stock passed the invest quality filter but is below the trade
+// liquidity threshold — so it has no entry in trade_signals table.
+
+function scoreItemToSignal(row: ScoreItem): TradeSignal {
+  return {
+    ticker: row.ticker,
+    trade_score: row.final_score,
+    technical_score: row.technical_score,
+    sentiment_score: null,
+    valuation_score: row.valuation_score,
+    verdict: row.verdict,
+    entry_price: row.entry_price,
+    target_price: row.target_price,    // invest mode target (entry × 1.15)
+    stop_loss: row.stop_loss,          // invest mode stop (50DMA × 0.98)
+    atr14: null,                       // not available — drawer uses fallback stops
+    risk_reward: row.risk_reward,
+    rsi: row.rsi,
+    ema20: null,
+    macd_signal: null,
+    volume_ratio: null,
+    near_52w_high: false,
+    price_vs_ema20_pct: null,
+    signal_type: 'INVEST',
+    scored_at: new Date().toISOString(),
   }
 }
 
@@ -157,8 +186,7 @@ function SentimentBar({ sentiment }: { sentiment: MarketSentiment }) {
         </span>
         <span className="text-slate-700">|</span>
         <span className="text-xs text-slate-400">
-          Sentiment{' '}
-          <span className="font-semibold text-white">{sentiment.sentiment_score}/10</span>
+          Sentiment <span className="font-semibold text-white">{sentiment.sentiment_score}/10</span>
         </span>
         <span className="ml-auto text-xs text-slate-600">Updated {time}</span>
       </div>
@@ -184,19 +212,26 @@ function ChecklistPanel({
 }) {
   const [data, setData] = useState<ChecklistResponse | null>(null)
   const [loading, setLoading] = useState(false)
+  const [notInTradeUniverse, setNotInTradeUniverse] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     if (!price || price <= 0) { setData(null); return }
     if (timerRef.current) clearTimeout(timerRef.current)
     setLoading(true)
+    setNotInTradeUniverse(false)
     timerRef.current = setTimeout(() => {
       axios
         .get<ChecklistResponse>(`${API_BASE}/api/trade/checklist/${ticker}`, {
           params: { price, capital },
         })
         .then((res) => setData(res.data))
-        .catch(() => setData(null))
+        .catch((err) => {
+          if (axios.isAxiosError(err) && err.response?.status === 404) {
+            setNotInTradeUniverse(true)
+          }
+          setData(null)
+        })
         .finally(() => setLoading(false))
     }, 700)
     return () => { if (timerRef.current) clearTimeout(timerRef.current) }
@@ -211,6 +246,18 @@ function ChecklistPanel({
       <div className="flex items-center gap-2 py-3 text-xs text-slate-500">
         <div className="h-3.5 w-3.5 animate-spin rounded-full border border-slate-500 border-t-slate-300" />
         Running checklist...
+      </div>
+    )
+  }
+
+  if (notInTradeUniverse) {
+    return (
+      <div className="rounded-lg border border-slate-700/60 bg-slate-800/40 px-4 py-3">
+        <p className="text-xs font-medium text-slate-400">ℹ️ Full checklist unavailable</p>
+        <p className="mt-1 text-xs text-slate-500">
+          This stock is below the trade mode liquidity threshold (avg daily volume &lt; ₹10cr).
+          Validate market conditions and risk parameters manually before entering.
+        </p>
       </div>
     )
   }
@@ -236,7 +283,6 @@ function ChecklistPanel({
           </p>
         )}
       </div>
-
       {categories.map((cat) => {
         const catChecks = data.checks.filter((c: ChecklistItem) => c.category === cat.key)
         if (catChecks.length === 0) return null
@@ -274,23 +320,41 @@ function AddTradeDrawer({
   onClose: () => void
   onSaved: () => void
 }) {
+  const isInvestMode = signal.signal_type === 'INVEST'
   const [price, setPrice] = useState<string>(signal.entry_price?.toFixed(2) ?? '')
   const [capital, setCapital] = useState<string>('500000')
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
-  const priceNum = parseFloat(price) || 0
+  const priceNum   = parseFloat(price) || 0
   const capitalNum = parseFloat(capital) || 500000
-  const atr = signal.atr14 ?? 0
+  const atr        = signal.atr14 ?? 0
 
-  const stopLoss = atr > 0 ? priceNum - 1.5 * atr : priceNum * 0.94
-  const target   = atr > 0 ? priceNum + 2.0 * atr : priceNum * 1.10
-  const stopPct  = priceNum > 0 ? ((priceNum - stopLoss) / priceNum * 100) : 0
-  const rr       = (priceNum - stopLoss) > 0 ? (target - priceNum) / (priceNum - stopLoss) : 0
-  const riskAmt  = capitalNum * 0.01
-  const qty      = (priceNum - stopLoss) > 0 ? Math.floor(riskAmt / (priceNum - stopLoss)) : 0
-  const deployed = qty * priceNum
+  // Stop/target priority:
+  // 1. ATR-based (trade mode with ATR available)
+  // 2. Invest mode pre-calculated stop/target shifted by price delta
+  // 3. Last-resort percentage fallback
+  let stopLoss: number
+  let target: number
+
+  if (atr > 0 && priceNum > 0) {
+    stopLoss = priceNum - 1.5 * atr
+    target   = priceNum + 2.0 * atr
+  } else if (signal.stop_loss && signal.target_price && signal.entry_price && priceNum > 0) {
+    const delta = priceNum - signal.entry_price
+    stopLoss = signal.stop_loss + delta
+    target   = signal.target_price + delta
+  } else {
+    stopLoss = priceNum * 0.93
+    target   = priceNum * 1.15
+  }
+
+  const stopPct     = priceNum > 0 ? ((priceNum - stopLoss) / priceNum * 100) : 0
+  const rr          = (priceNum - stopLoss) > 0 ? (target - priceNum) / (priceNum - stopLoss) : 0
+  const riskAmt     = capitalNum * 0.01
+  const qty         = (priceNum - stopLoss) > 0 ? Math.floor(riskAmt / (priceNum - stopLoss)) : 0
+  const deployed    = qty * priceNum
   const deployedPct = capitalNum > 0 ? (deployed / capitalNum * 100) : 0
 
   async function handleSave() {
@@ -322,13 +386,8 @@ function AddTradeDrawer({
 
   return (
     <>
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
-      />
+      <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Drawer */}
       <div className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col overflow-y-auto border-l border-slate-700/80 bg-slate-900 shadow-2xl">
 
         {/* Header */}
@@ -338,7 +397,9 @@ function AddTradeDrawer({
             <p className="text-xs text-slate-400">
               {displayTicker}
               {signal.signal_type && (
-                <span className="ml-2 rounded bg-violet-500/15 px-1.5 py-0.5 text-violet-400">
+                <span className={`ml-2 rounded px-1.5 py-0.5 text-xs font-medium ${
+                  isInvestMode ? 'bg-slate-600/60 text-slate-300' : 'bg-violet-500/15 text-violet-400'
+                }`}>
                   {signal.signal_type}
                 </span>
               )}
@@ -352,10 +413,20 @@ function AddTradeDrawer({
           </button>
         </div>
 
+        {/* Invest mode notice */}
+        {isInvestMode && (
+          <div className="border-b border-slate-700/60 bg-slate-800/40 px-5 py-3">
+            <p className="text-xs text-slate-400">
+              📈 Using <span className="font-medium text-white">invest mode</span> stop/target (50 DMA based).
+              Stop and target shift proportionally if you enter a different price.
+            </p>
+          </div>
+        )}
+
         {/* Body */}
         <div className="flex-1 space-y-5 px-5 py-5">
 
-          {/* Price input */}
+          {/* Price */}
           <div>
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-slate-500">
               Current Market Price (₹)
@@ -368,11 +439,14 @@ function AddTradeDrawer({
               className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-white placeholder-slate-500 focus:border-emerald-500/50 focus:outline-none"
             />
             <p className="mt-1 text-xs text-slate-500">
-              Signal entry: ₹{signal.entry_price?.toFixed(2)} — ATR14: {signal.atr14?.toFixed(2) ?? '—'}
+              Signal entry: ₹{signal.entry_price?.toFixed(2)}
+              {!isInvestMode && signal.atr14 && (
+                <span className="ml-2">ATR14: {signal.atr14.toFixed(2)}</span>
+              )}
             </p>
           </div>
 
-          {/* Auto-calculated parameters */}
+          {/* Auto-calculated */}
           {priceNum > 0 && (
             <div className="rounded-lg border border-slate-700/80 bg-slate-800/50 p-4">
               <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-500">
@@ -396,9 +470,7 @@ function AddTradeDrawer({
                     1 : {rr.toFixed(2)}
                   </span>
                 </div>
-
                 <div className="my-1 border-t border-slate-700/60" />
-
                 <div className="flex items-center justify-between">
                   <label className="text-xs text-slate-400">Capital (₹)</label>
                   <input
@@ -437,11 +509,7 @@ function AddTradeDrawer({
             <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-500">
               Pre-Trade Checklist
             </p>
-            <ChecklistPanel
-              ticker={signal.ticker}
-              price={priceNum}
-              capital={capitalNum}
-            />
+            <ChecklistPanel ticker={signal.ticker} price={priceNum} capital={capitalNum} />
           </div>
 
           {/* Notes */}
@@ -508,7 +576,10 @@ export default function App() {
   const [tradeError, setTradeError] = useState<string | null>(null)
   const [tradeTab, setTradeTab] = useState<TradeTab>('BUY')
   const [tradeDataLoaded, setTradeDataLoaded] = useState(false)
+
+  // Shared drawer state
   const [addTradeSignal, setAddTradeSignal] = useState<TradeSignal | null>(null)
+  const [fetchingSignal, setFetchingSignal] = useState<string | null>(null)
   const [tradeSaved, setTradeSaved] = useState(false)
 
   // Load invest mode data on mount
@@ -539,7 +610,7 @@ export default function App() {
     return () => { cancelled = true }
   }, [])
 
-  // Load trade mode data when first switching to TRADE
+  // Load trade mode data on first switch to TRADE
   useEffect(() => {
     if (mode !== 'TRADE' || tradeDataLoaded) return
     let cancelled = false
@@ -561,10 +632,8 @@ export default function App() {
       .then(([sb, buy, wl, avoid]) => {
         if (!cancelled) {
           setAllTradeSignals({
-            STRONG_BUY: sb.data,
-            BUY: buy.data,
-            WATCHLIST: wl.data,
-            AVOID: avoid.data,
+            STRONG_BUY: sb.data, BUY: buy.data,
+            WATCHLIST: wl.data, AVOID: avoid.data,
           })
           setTradeDataLoaded(true)
         }
@@ -574,6 +643,22 @@ export default function App() {
 
     return () => { cancelled = true }
   }, [mode, tradeDataLoaded])
+
+  // Invest mode "+ Add" handler
+  // Tries to get the trade signal first (ATR-based stops).
+  // Falls back to building from ScoreItem if not in trade universe.
+  async function handleInvestAdd(row: ScoreItem) {
+    setFetchingSignal(row.ticker)
+    setTradeSaved(false)
+    try {
+      const res = await axios.get<TradeSignal>(`${API_BASE}/api/trade/scores/${row.ticker}`)
+      setAddTradeSignal(res.data)
+    } catch {
+      setAddTradeSignal(scoreItemToSignal(row))
+    } finally {
+      setFetchingSignal(null)
+    }
+  }
 
   const investScores = allScores[activeTab]
   const tradeSignals = allTradeSignals[tradeTab]
@@ -586,18 +671,13 @@ export default function App() {
       {/* ── NAV ── */}
       <nav className="border-b border-slate-700/80 bg-slate-900/50 px-4 py-4 sm:px-6">
         <div className="mx-auto flex max-w-[1400px] flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-
           <div className="flex items-center gap-4">
             <div className="flex flex-col gap-0.5">
-              <h1 className="text-left text-xl font-semibold tracking-tight text-white">
-                Stock Advisor
-              </h1>
+              <h1 className="text-left text-xl font-semibold tracking-tight text-white">Stock Advisor</h1>
               <p className="text-xs text-slate-500">
                 made with 🧡 by <span className="text-[#FF6E00]">Syro</span>
               </p>
             </div>
-
-            {/* Mode toggle */}
             <div className="ml-2 flex rounded-lg bg-slate-800 p-0.5 ring-1 ring-slate-700">
               {(['INVEST', 'TRADE'] as AppMode[]).map((m) => (
                 <button
@@ -605,9 +685,7 @@ export default function App() {
                   type="button"
                   onClick={() => setMode(m)}
                   className={`rounded-md px-4 py-1.5 text-xs font-semibold transition ${
-                    mode === m
-                      ? 'bg-slate-600 text-white shadow'
-                      : 'text-slate-400 hover:text-white'
+                    mode === m ? 'bg-slate-600 text-white shadow' : 'text-slate-400 hover:text-white'
                   }`}
                 >
                   {m === 'INVEST' ? '📈 INVEST' : '⚡ TRADE'}
@@ -616,12 +694,9 @@ export default function App() {
             </div>
           </div>
 
-          {/* Invest summary pills */}
           {mode === 'INVEST' && (
             <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-              {summaryLoading ? (
-                <Spinner />
-              ) : summaryError ? (
+              {summaryLoading ? <Spinner /> : summaryError ? (
                 <span className="text-sm text-rose-400">{summaryError}</span>
               ) : summary ? (
                 <>
@@ -642,30 +717,23 @@ export default function App() {
             </div>
           )}
 
-          {/* Trade sentiment pills */}
           {mode === 'TRADE' && sentiment && (
             <div className="flex flex-wrap items-center gap-2 lg:justify-end">
               <span className={`rounded-full px-3 py-1 text-sm font-semibold ring-1 ${regimeRingClass(sentiment.market_regime)}`}>
                 {sentiment.market_regime}
               </span>
               <span className="rounded-full bg-slate-700/80 px-3 py-1 text-sm text-slate-300">
-                VIX{' '}
-                <span className={`font-semibold ${vixColor(sentiment.india_vix)}`}>
-                  {sentiment.india_vix.toFixed(1)}
-                </span>
+                VIX <span className={`font-semibold ${vixColor(sentiment.india_vix)}`}>{sentiment.india_vix.toFixed(1)}</span>
               </span>
               <span className="rounded-full bg-slate-700/80 px-3 py-1 text-sm text-slate-300">
-                Nifty{' '}
-                <span className={`font-semibold ${trendColor(sentiment.nifty_trend)}`}>
-                  {sentiment.nifty_trend}
-                </span>
+                Nifty <span className={`font-semibold ${trendColor(sentiment.nifty_trend)}`}>{sentiment.nifty_trend}</span>
               </span>
             </div>
           )}
         </div>
       </nav>
 
-      {/* ── MAIN CONTENT ── */}
+      {/* ── MAIN ── */}
       <div className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 sm:px-6">
 
         {/* ── INVEST MODE ── */}
@@ -673,18 +741,11 @@ export default function App() {
           <>
             <div className="mb-6 flex gap-1 rounded-lg bg-slate-800/80 p-1 ring-1 ring-slate-700/80">
               {investTabs.map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setActiveTab(tab)}
+                <button key={tab} type="button" onClick={() => setActiveTab(tab)}
                   className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition sm:flex-none sm:px-6 ${
-                    activeTab === tab
-                      ? 'bg-slate-700 text-white shadow'
-                      : 'text-slate-400 hover:text-white'
+                    activeTab === tab ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-white'
                   }`}
-                >
-                  {tab}
-                </button>
+                >{tab}</button>
               ))}
             </div>
 
@@ -694,13 +755,17 @@ export default function App() {
               </div>
             )}
 
+            {tradeSaved && (
+              <div className="mb-4 rounded-lg border border-emerald-500/40 bg-emerald-950/40 px-4 py-3 text-sm text-emerald-300">
+                ✅ Trade saved successfully.
+              </div>
+            )}
+
             <div className="overflow-hidden rounded-xl border border-slate-700/80 bg-slate-900/40">
               {scoresLoading ? (
                 <div className="flex min-h-[240px] flex-col items-center justify-center gap-3 py-16">
                   <Spinner />
-                  <p className="animate-pulse text-xs text-slate-500">
-                    Loading stocks — may take a moment on first load...
-                  </p>
+                  <p className="animate-pulse text-xs text-slate-500">Loading stocks — may take a moment on first load...</p>
                 </div>
               ) : investScores.length === 0 ? (
                 <div className="flex min-h-[240px] flex-col items-center justify-center gap-2 py-16 text-slate-500">
@@ -728,6 +793,7 @@ export default function App() {
                         <th className="whitespace-nowrap px-3 py-3 font-medium">ROE%</th>
                         <th className="whitespace-nowrap px-3 py-3 font-medium">Rev Growth%</th>
                         <th className="whitespace-nowrap px-3 py-3 font-medium">Promoter%</th>
+                        <th className="whitespace-nowrap px-3 py-3 font-medium"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-700/60">
@@ -753,6 +819,16 @@ export default function App() {
                           <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-300">{fmt(row.roe)}</td>
                           <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-300">{fmt(row.revenue_growth_3yr)}</td>
                           <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-300">{fmt(row.promoter_holding)}</td>
+                          <td className="whitespace-nowrap px-3 py-2.5">
+                            <button
+                              type="button"
+                              onClick={() => handleInvestAdd(row)}
+                              disabled={fetchingSignal === row.ticker}
+                              className="rounded-md bg-slate-700/60 px-3 py-1 text-xs font-semibold text-slate-300 ring-1 ring-slate-600 transition hover:bg-slate-600 hover:text-white disabled:opacity-40"
+                            >
+                              {fetchingSignal === row.ticker ? '...' : '+ Add'}
+                            </button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -777,18 +853,11 @@ export default function App() {
 
             <div className="mb-6 flex gap-1 rounded-lg bg-slate-800/80 p-1 ring-1 ring-slate-700/80">
               {tradeTabs.map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setTradeTab(tab)}
+                <button key={tab} type="button" onClick={() => setTradeTab(tab)}
                   className={`flex-1 rounded-md px-3 py-2 text-xs font-semibold transition sm:flex-none sm:px-5 ${
-                    tradeTab === tab
-                      ? 'bg-slate-700 text-white shadow'
-                      : 'text-slate-400 hover:text-white'
+                    tradeTab === tab ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-white'
                   }`}
-                >
-                  {tab.replace('_', ' ')}
-                </button>
+                >{tab.replace('_', ' ')}</button>
               ))}
             </div>
 
@@ -838,15 +907,9 @@ export default function App() {
                     <tbody className="divide-y divide-slate-700/60">
                       {tradeSignals.map((row) => (
                         <tr key={row.ticker} className="hover:bg-slate-800/50">
-                          <td className="whitespace-nowrap px-3 py-2.5 font-bold text-white">
-                            {row.ticker.replace('.NS', '')}
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-2.5">
-                            <VerdictBadge verdict={row.verdict} />
-                          </td>
-                          <td className="whitespace-nowrap px-3 py-2.5">
-                            <SignalTypeBadge type={row.signal_type} />
-                          </td>
+                          <td className="whitespace-nowrap px-3 py-2.5 font-bold text-white">{row.ticker.replace('.NS', '')}</td>
+                          <td className="whitespace-nowrap px-3 py-2.5"><VerdictBadge verdict={row.verdict} /></td>
+                          <td className="whitespace-nowrap px-3 py-2.5"><SignalTypeBadge type={row.signal_type} /></td>
                           <td className="whitespace-nowrap px-3 py-2.5">
                             <span className={`inline-flex min-w-[3rem] justify-center rounded-md px-2 py-0.5 text-xs font-semibold ${scoreBadgeClass(row.trade_score)}`}>
                               {fmt(row.trade_score)}
@@ -885,35 +948,24 @@ export default function App() {
         <div className="mx-auto flex max-w-[1400px] items-center justify-between">
           <div className="flex items-center gap-4">
             <span className="text-xs text-slate-500">Check out:</span>
-            <a
-              href="https://www.instagram.com/syro.ig/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs font-medium text-slate-300 underline underline-offset-2 transition-colors hover:text-white"
-            >
+            <a href="https://www.instagram.com/syro.ig/" target="_blank" rel="noopener noreferrer"
+              className="text-xs font-medium text-slate-300 underline underline-offset-2 transition-colors hover:text-white">
               Instagram
             </a>
-            <a
-              href="https://www.linkedin.com/in/soumojitg"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs font-medium text-slate-300 underline underline-offset-2 transition-colors hover:text-white"
-            >
+            <a href="https://www.linkedin.com/in/soumojitg" target="_blank" rel="noopener noreferrer"
+              className="text-xs font-medium text-slate-300 underline underline-offset-2 transition-colors hover:text-white">
               LinkedIn
             </a>
           </div>
-          <a
-            href="https://docs.google.com/document/d/1Q_yVIUlCQjCcxXt-6Rj_oQOKghdG44gqPYHC2Qk8KI4/edit?usp=sharing"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs font-medium text-slate-300 underline underline-offset-2 transition-colors hover:text-white"
-          >
+          <a href="https://docs.google.com/document/d/1Q_yVIUlCQjCcxXt-6Rj_oQOKghdG44gqPYHC2Qk8KI4/edit?usp=sharing"
+            target="_blank" rel="noopener noreferrer"
+            className="text-xs font-medium text-slate-300 underline underline-offset-2 transition-colors hover:text-white">
             How to Use
           </a>
         </div>
       </footer>
 
-      {/* ── ADD TRADE DRAWER ── */}
+      {/* ── ADD TRADE DRAWER (shared by both modes) ── */}
       {addTradeSignal && (
         <AddTradeDrawer
           signal={addTradeSignal}
