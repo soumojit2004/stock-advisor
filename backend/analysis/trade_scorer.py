@@ -257,7 +257,12 @@ def run_trade_scorer():
         target = round(entry * (1 + target_pct), 2)
 
         rr = round((target - entry) / (entry - stop_loss), 2) if (entry - stop_loss) > 0 else None
+        near_52w_high = bool(
+            not pd.isna(latest["high_52w"]) and
+            ((latest["close"] - latest["high_52w"]) / latest["high_52w"]) >= -0.05
+        )
 
+        
         results.append({
             "ticker": ticker,
             "trade_score": final_score,
