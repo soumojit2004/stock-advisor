@@ -670,7 +670,7 @@ export default function App() {
 
       {/* ── NAV ── */}
       <nav className="border-b border-slate-700/80 bg-slate-900/50 px-4 py-4 sm:px-6">
-        <div className="mx-auto flex max-w-[1400px] flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="mx-auto flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
             <div className="flex flex-col gap-0.5">
               <h1 className="text-left text-xl font-semibold tracking-tight text-white">Stock Advisor</h1>
@@ -734,7 +734,7 @@ export default function App() {
       </nav>
 
       {/* ── MAIN ── */}
-      <div className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 sm:px-6">
+      <div className="mx-auto w-full flex-1 px-4 py-6 sm:px-6">
 
         {/* ── INVEST MODE ── */}
         {mode === 'INVEST' && (
@@ -774,52 +774,52 @@ export default function App() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1100px] border-collapse text-left text-sm">
+                  <table className="w-full border-collapse text-left text-xs">
                     <thead>
                       <tr className="border-b border-slate-700 bg-slate-900/80 text-xs uppercase tracking-wide text-slate-400">
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">Ticker</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">Sector</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">Score</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">Quality</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">Valuation</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">Technical</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">Entry (₹)</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">Target (₹)</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">Stop Loss (₹)</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">R/R</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">RSI</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">vs 50DMA</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">vs 200DMA</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">ROE%</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">Rev Growth%</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">Promoter%</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium"></th>
+                        <th className="whitespace-nowrap px-2 py-3 font-medium">Ticker</th>
+                        <th className="whitespace-nowrap px-2 py-3 font-medium">Sector</th>
+                        <th className="whitespace-nowrap px-2 py-3 font-medium">Score</th>
+                        <th className="whitespace-nowrap px-2 py-3 font-medium">Quality</th>
+                        <th className="whitespace-nowrap px-2 py-3 font-medium">Valuation</th>
+                        <th className="whitespace-nowrap px-2 py-3 font-medium">Technical</th>
+                        <th className="whitespace-nowrap px-2 py-3 font-medium">Entry (₹)</th>
+                        <th className="whitespace-nowrap px-2 py-3 font-medium">Target (₹)</th>
+                        <th className="whitespace-nowrap px-2 py-3 font-medium">Stop Loss (₹)</th>
+                        <th className="whitespace-nowrap px-2 py-3 font-medium">R/R</th>
+                        <th className="whitespace-nowrap px-2 py-3 font-medium">RSI</th>
+                        <th className="whitespace-nowrap px-2 py-3 font-medium">vs 50DMA</th>
+                        <th className="whitespace-nowrap px-2 py-3 font-medium">vs 200DMA</th>
+                        <th className="whitespace-nowrap px-2 py-3 font-medium">ROE%</th>
+                        <th className="whitespace-nowrap px-2 py-3 font-medium">Rev Growth%</th>
+                        <th className="whitespace-nowrap px-2 py-3 font-medium">Promoter%</th>
+                        <th className="whitespace-nowrap px-2 py-3 font-medium"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-700/60">
                       {investScores.map((row) => (
                         <tr key={row.ticker} className="hover:bg-slate-800/50">
                           <td className="whitespace-nowrap px-3 py-2.5 font-bold text-white">{row.ticker}</td>
-                          <td className="max-w-[140px] truncate px-3 py-2.5 text-slate-300">{row.sector ?? '—'}</td>
+                          <td className="max-w-[120px] truncate px-2 py-2 text-slate-300">{row.sector ?? '—'}</td>
                           <td className="whitespace-nowrap px-3 py-2.5">
                             <span className={`inline-flex min-w-[3rem] justify-center rounded-md px-2 py-0.5 text-xs font-semibold ${scoreBadgeClass(row.final_score)}`}>
                               {fmt(row.final_score)}
                             </span>
                           </td>
-                          <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-300">{fmt(row.business_quality_score)}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-300">{fmt(row.valuation_score)}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-300">{fmt(row.technical_score)}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-300">{fmt(row.entry_price)}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-emerald-400">{fmt(row.target_price)}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-300">{fmt(row.stop_loss)}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-300">{fmt(row.risk_reward)}</td>
-                          <td className={`whitespace-nowrap px-3 py-2.5 tabular-nums ${rsiTextClass(row.rsi)}`}>{fmt(row.rsi)}</td>
-                          <td className={`whitespace-nowrap px-3 py-2.5 tabular-nums ${dmaTextClass(row.price_vs_50dma)}`}>{fmt(row.price_vs_50dma)}</td>
-                          <td className={`whitespace-nowrap px-3 py-2.5 tabular-nums ${dmaTextClass(row.price_vs_200dma)}`}>{fmt(row.price_vs_200dma)}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-300">{fmt(row.roe)}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-300">{fmt(row.revenue_growth_3yr)}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-300">{fmt(row.promoter_holding)}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5">
+                          <td className="whitespace-nowrap px-2 py-2 tabular-nums text-slate-300">{fmt(row.business_quality_score)}</td>
+                          <td className="whitespace-nowrap px-2 py-2 tabular-nums text-slate-300">{fmt(row.valuation_score)}</td>
+                          <td className="whitespace-nowrap px-2 py-2 tabular-nums text-slate-300">{fmt(row.technical_score)}</td>
+                          <td className="whitespace-nowrap px-2 py-2 tabular-nums text-slate-300">{fmt(row.entry_price)}</td>
+                          <td className="whitespace-nowrap px-2 py-2 tabular-nums text-emerald-400">{fmt(row.target_price)}</td>
+                          <td className="whitespace-nowrap px-2 py-2 tabular-nums text-slate-300">{fmt(row.stop_loss)}</td>
+                          <td className="whitespace-nowrap px-2 py-2 tabular-nums text-slate-300">{fmt(row.risk_reward)}</td>
+                          <td className={`whitespace-nowrap px-2 py-2 tabular-nums ${rsiTextClass(row.rsi)}`}>{fmt(row.rsi)}</td>
+                          <td className={`whitespace-nowrap px-2 py-2 tabular-nums ${dmaTextClass(row.price_vs_50dma)}`}>{fmt(row.price_vs_50dma)}</td>
+                          <td className={`whitespace-nowrap px-2 py-2 tabular-nums ${dmaTextClass(row.price_vs_200dma)}`}>{fmt(row.price_vs_200dma)}</td>
+                          <td className="whitespace-nowrap px-2 py-2 tabular-nums text-slate-300">{fmt(row.roe)}</td>
+                          <td className="whitespace-nowrap px-2 py-2 tabular-nums text-slate-300">{fmt(row.revenue_growth_3yr)}</td>
+                          <td className="whitespace-nowrap px-2 py-2 tabular-nums text-slate-300">{fmt(row.promoter_holding)}</td>
+                          <td className="whitespace-nowrap px-2 py-2">
                             <button
                               type="button"
                               onClick={() => handleInvestAdd(row)}
@@ -945,7 +945,7 @@ export default function App() {
 
       {/* ── FOOTER ── */}
       <footer className="mt-6 border-t border-slate-700/80 bg-slate-900/50 px-4 py-4 sm:px-6">
-        <div className="mx-auto flex max-w-[1400px] items-center justify-between">
+        <div className="mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <span className="text-xs text-slate-500">Check out:</span>
             <a href="https://www.instagram.com/syro.ig/" target="_blank" rel="noopener noreferrer"
