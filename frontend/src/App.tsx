@@ -67,6 +67,33 @@ function regimeRingClass(regime: string): string {
   return 'bg-rose-500/15 text-rose-400 ring-rose-500/30'
 }
 
+// ─── SORT HELPERS ─────────────────────────────────────────────────────────────
+
+type SortState<T> = { key: keyof T | null; dir: 'asc' | 'desc' }
+
+function sortRows<T>(rows: T[], sort: SortState<T>): T[] {
+  if (!sort.key) return rows
+  return [...rows].sort((a, b) => {
+    const av = (a[sort.key!] as unknown as number | string) ?? -Infinity
+    const bv = (b[sort.key!] as unknown as number | string) ?? -Infinity
+    if (av < bv) return sort.dir === 'asc' ? -1 : 1
+    if (av > bv) return sort.dir === 'asc' ? 1 : -1
+    return 0
+  })
+}
+
+function toggleSort<T>(prev: SortState<T>, key: keyof T): SortState<T> {
+  return {
+    key,
+    dir: prev.key === key && prev.dir === 'desc' ? 'asc' : 'desc',
+  }
+}
+
+function SortIcon({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }) {
+  if (!active) return <span className="ml-1 text-slate-600">↕</span>
+  return <span className="ml-1 text-emerald-400">{dir === 'desc' ? '↓' : '↑'}</span>
+}
+
 // ─── SMALL COMPONENTS ────────────────────────────────────────────────────────
 
 function Spinner() {
@@ -127,8 +154,6 @@ function overallBanner(overall: string): { bg: string; text: string; label: stri
 }
 
 // ─── BUILD SIGNAL FROM SCOREITEM ─────────────────────────────────────────────
-// Used when a stock passed the invest quality filter but is below the trade
-// liquidity threshold — so it has no entry in trade_signals table.
 
 function scoreItemToSignal(row: ScoreItem): TradeSignal {
   return {
@@ -139,9 +164,9 @@ function scoreItemToSignal(row: ScoreItem): TradeSignal {
     valuation_score: row.valuation_score,
     verdict: row.verdict,
     entry_price: row.entry_price,
-    target_price: row.target_price,    // invest mode target (entry × 1.15)
-    stop_loss: row.stop_loss,          // invest mode stop (50DMA × 0.98)
-    atr14: null,                       // not available — drawer uses fallback stops
+    target_price: row.target_price,
+    stop_loss: row.stop_loss,
+    atr14: null,
     risk_reward: row.risk_reward,
     rsi: row.rsi,
     ema20: null,
@@ -331,10 +356,6 @@ function AddTradeDrawer({
   const capitalNum = parseFloat(capital) || 500000
   const atr        = signal.atr14 ?? 0
 
-  // Stop/target priority:
-  // 1. ATR-based (trade mode with ATR available)
-  // 2. Invest mode pre-calculated stop/target shifted by price delta
-  // 3. Last-resort percentage fallback
   let stopLoss: number
   let target: number
 
@@ -387,10 +408,8 @@ function AddTradeDrawer({
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-
       <div className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col overflow-y-auto border-l border-slate-700/80 bg-slate-900 shadow-2xl">
 
-        {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-700/80 px-5 py-4">
           <div>
             <h2 className="text-base font-semibold text-white">Add a Trade</h2>
@@ -413,7 +432,6 @@ function AddTradeDrawer({
           </button>
         </div>
 
-        {/* Invest mode notice */}
         {isInvestMode && (
           <div className="border-b border-slate-700/60 bg-slate-800/40 px-5 py-3">
             <p className="text-xs text-slate-400">
@@ -423,10 +441,7 @@ function AddTradeDrawer({
           </div>
         )}
 
-        {/* Body */}
         <div className="flex-1 space-y-5 px-5 py-5">
-
-          {/* Price */}
           <div>
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-slate-500">
               Current Market Price (₹)
@@ -446,7 +461,6 @@ function AddTradeDrawer({
             </p>
           </div>
 
-          {/* Auto-calculated */}
           {priceNum > 0 && (
             <div className="rounded-lg border border-slate-700/80 bg-slate-800/50 p-4">
               <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-slate-500">
@@ -504,7 +518,6 @@ function AddTradeDrawer({
             </div>
           )}
 
-          {/* Checklist */}
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-500">
               Pre-Trade Checklist
@@ -512,7 +525,6 @@ function AddTradeDrawer({
             <ChecklistPanel ticker={signal.ticker} price={priceNum} capital={capitalNum} />
           </div>
 
-          {/* Notes */}
           <div>
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-slate-500">
               Notes (optional)
@@ -529,7 +541,6 @@ function AddTradeDrawer({
           {saveError && <p className="text-xs text-rose-400">{saveError}</p>}
         </div>
 
-        {/* Footer */}
         <div className="flex gap-3 border-t border-slate-700/80 px-5 py-4">
           <button
             onClick={handleSave}
@@ -565,6 +576,7 @@ export default function App() {
   const [scoresLoading, setScoresLoading] = useState(true)
   const [scoresError, setScoresError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<VerdictTab>('BUY')
+  const [investSort, setInvestSort] = useState<SortState<ScoreItem>>({ key: null, dir: 'desc' })
 
   // Trade mode state
   const [sentiment, setSentiment] = useState<MarketSentiment | null>(null)
@@ -576,13 +588,13 @@ export default function App() {
   const [tradeError, setTradeError] = useState<string | null>(null)
   const [tradeTab, setTradeTab] = useState<TradeTab>('BUY')
   const [tradeDataLoaded, setTradeDataLoaded] = useState(false)
+  const [tradeSort, setTradeSort] = useState<SortState<TradeSignal>>({ key: null, dir: 'desc' })
 
   // Shared drawer state
   const [addTradeSignal, setAddTradeSignal] = useState<TradeSignal | null>(null)
   const [fetchingSignal, setFetchingSignal] = useState<string | null>(null)
   const [tradeSaved, setTradeSaved] = useState(false)
 
-  // Load invest mode data on mount
   useEffect(() => {
     let cancelled = false
     setSummaryLoading(true)
@@ -610,7 +622,6 @@ export default function App() {
     return () => { cancelled = true }
   }, [])
 
-  // Load trade mode data on first switch to TRADE
   useEffect(() => {
     if (mode !== 'TRADE' || tradeDataLoaded) return
     let cancelled = false
@@ -644,9 +655,6 @@ export default function App() {
     return () => { cancelled = true }
   }, [mode, tradeDataLoaded])
 
-  // Invest mode "+ Add" handler
-  // Tries to get the trade signal first (ATR-based stops).
-  // Falls back to building from ScoreItem if not in trade universe.
   async function handleInvestAdd(row: ScoreItem) {
     setFetchingSignal(row.ticker)
     setTradeSaved(false)
@@ -660,17 +668,52 @@ export default function App() {
     }
   }
 
-  const investScores = allScores[activeTab]
-  const tradeSignals = allTradeSignals[tradeTab]
+  const investScores = sortRows(allScores[activeTab], investSort)
+  const tradeSignals = sortRows(allTradeSignals[tradeTab], tradeSort)
   const investTabs: VerdictTab[] = ['BUY', 'WATCHLIST', 'AVOID']
   const tradeTabs: TradeTab[]    = ['STRONG_BUY', 'BUY', 'WATCHLIST', 'AVOID']
+
+  const investColumns: { label: string; key: keyof ScoreItem }[] = [
+    { label: 'Ticker',        key: 'ticker' },
+    { label: 'Sector',        key: 'sector' },
+    { label: 'Score',         key: 'final_score' },
+    { label: 'Quality',       key: 'business_quality_score' },
+    { label: 'Valuation',     key: 'valuation_score' },
+    { label: 'Technical',     key: 'technical_score' },
+    { label: 'Entry (₹)',     key: 'entry_price' },
+    { label: 'Target (₹)',    key: 'target_price' },
+    { label: 'Stop Loss (₹)', key: 'stop_loss' },
+    { label: 'R/R',           key: 'risk_reward' },
+    { label: 'RSI',           key: 'rsi' },
+    { label: 'vs 50DMA',      key: 'price_vs_50dma' },
+    { label: 'vs 200DMA',     key: 'price_vs_200dma' },
+    { label: 'ROE%',          key: 'roe' },
+    { label: 'Rev Growth%',   key: 'revenue_growth_3yr' },
+    { label: 'Promoter%',     key: 'promoter_holding' },
+  ]
+
+  const tradeColumns: { label: string; key: keyof TradeSignal | '' }[] = [
+    { label: 'Ticker',     key: 'ticker' },
+    { label: 'Signal',     key: 'verdict' },
+    { label: 'Type',       key: 'signal_type' },
+    { label: 'Score',      key: 'trade_score' },
+    { label: 'Technical',  key: 'technical_score' },
+    { label: 'Entry (₹)',  key: 'entry_price' },
+    { label: 'Target (₹)', key: 'target_price' },
+    { label: 'Stop (₹)',   key: 'stop_loss' },
+    { label: 'R/R',        key: 'risk_reward' },
+    { label: 'RSI',        key: 'rsi' },
+    { label: 'Vol Ratio',  key: 'volume_ratio' },
+    { label: 'ATR14',      key: 'atr14' },
+    { label: '',           key: '' },
+  ]
 
   return (
     <div className="flex min-h-screen flex-col bg-[#0f172a] text-slate-200">
 
       {/* ── NAV ── */}
       <nav className="border-b border-slate-700/80 bg-slate-900/50 px-4 py-4 sm:px-6">
-        <div className="mx-auto flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="mx-auto flex w-full flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
             <div className="flex flex-col gap-0.5">
               <h1 className="text-left text-xl font-semibold tracking-tight text-white">Stock Advisor</h1>
@@ -741,7 +784,8 @@ export default function App() {
           <>
             <div className="mb-6 flex gap-1 rounded-lg bg-slate-800/80 p-1 ring-1 ring-slate-700/80">
               {investTabs.map((tab) => (
-                <button key={tab} type="button" onClick={() => setActiveTab(tab)}
+                <button key={tab} type="button"
+                  onClick={() => { setActiveTab(tab); setInvestSort({ key: null, dir: 'desc' }) }}
                   className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition sm:flex-none sm:px-6 ${
                     activeTab === tab ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-white'
                   }`}
@@ -776,32 +820,25 @@ export default function App() {
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse text-left text-xs">
                     <thead>
-                      <tr className="border-b border-slate-700 bg-slate-900/80 text-xs uppercase tracking-wide text-slate-400">
-                        <th className="whitespace-nowrap px-2 py-3 font-medium">Ticker</th>
-                        <th className="whitespace-nowrap px-2 py-3 font-medium">Sector</th>
-                        <th className="whitespace-nowrap px-2 py-3 font-medium">Score</th>
-                        <th className="whitespace-nowrap px-2 py-3 font-medium">Quality</th>
-                        <th className="whitespace-nowrap px-2 py-3 font-medium">Valuation</th>
-                        <th className="whitespace-nowrap px-2 py-3 font-medium">Technical</th>
-                        <th className="whitespace-nowrap px-2 py-3 font-medium">Entry (₹)</th>
-                        <th className="whitespace-nowrap px-2 py-3 font-medium">Target (₹)</th>
-                        <th className="whitespace-nowrap px-2 py-3 font-medium">Stop Loss (₹)</th>
-                        <th className="whitespace-nowrap px-2 py-3 font-medium">R/R</th>
-                        <th className="whitespace-nowrap px-2 py-3 font-medium">RSI</th>
-                        <th className="whitespace-nowrap px-2 py-3 font-medium">vs 50DMA</th>
-                        <th className="whitespace-nowrap px-2 py-3 font-medium">vs 200DMA</th>
-                        <th className="whitespace-nowrap px-2 py-3 font-medium">ROE%</th>
-                        <th className="whitespace-nowrap px-2 py-3 font-medium">Rev Growth%</th>
-                        <th className="whitespace-nowrap px-2 py-3 font-medium">Promoter%</th>
-                        <th className="whitespace-nowrap px-2 py-3 font-medium"></th>
+                      <tr className="border-b border-slate-700 bg-slate-900/80 uppercase tracking-wide text-slate-400">
+                        {investColumns.map(({ label, key }) => (
+                          <th
+                            key={key}
+                            onClick={() => setInvestSort(prev => toggleSort(prev, key))}
+                            className="whitespace-nowrap px-2 py-2 font-medium cursor-pointer select-none hover:text-white"
+                          >
+                            {label}<SortIcon active={investSort.key === key} dir={investSort.dir} />
+                          </th>
+                        ))}
+                        <th className="whitespace-nowrap px-2 py-2 font-medium" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-700/60">
                       {investScores.map((row) => (
                         <tr key={row.ticker} className="hover:bg-slate-800/50">
-                          <td className="whitespace-nowrap px-3 py-2.5 font-bold text-white">{row.ticker}</td>
+                          <td className="whitespace-nowrap px-2 py-2 font-bold text-white">{row.ticker}</td>
                           <td className="max-w-[120px] truncate px-2 py-2 text-slate-300">{row.sector ?? '—'}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5">
+                          <td className="whitespace-nowrap px-2 py-2">
                             <span className={`inline-flex min-w-[3rem] justify-center rounded-md px-2 py-0.5 text-xs font-semibold ${scoreBadgeClass(row.final_score)}`}>
                               {fmt(row.final_score)}
                             </span>
@@ -853,7 +890,8 @@ export default function App() {
 
             <div className="mb-6 flex gap-1 rounded-lg bg-slate-800/80 p-1 ring-1 ring-slate-700/80">
               {tradeTabs.map((tab) => (
-                <button key={tab} type="button" onClick={() => setTradeTab(tab)}
+                <button key={tab} type="button"
+                  onClick={() => { setTradeTab(tab); setTradeSort({ key: null, dir: 'desc' }) }}
                   className={`flex-1 rounded-md px-3 py-2 text-xs font-semibold transition sm:flex-none sm:px-5 ${
                     tradeTab === tab ? 'bg-slate-700 text-white shadow' : 'text-slate-400 hover:text-white'
                   }`}
@@ -886,44 +924,41 @@ export default function App() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1100px] border-collapse text-left text-sm">
+                  <table className="w-full border-collapse text-left text-xs">
                     <thead>
-                      <tr className="border-b border-slate-700 bg-slate-900/80 text-xs uppercase tracking-wide text-slate-400">
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">Ticker</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">Signal</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">Type</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">Score</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">Technical</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">Entry (₹)</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">Target (₹)</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">Stop (₹)</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">R/R</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">RSI</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">Vol Ratio</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium">ATR14</th>
-                        <th className="whitespace-nowrap px-3 py-3 font-medium"></th>
+                      <tr className="border-b border-slate-700 bg-slate-900/80 uppercase tracking-wide text-slate-400">
+                        {tradeColumns.map(({ label, key }) => (
+                          <th
+                            key={key || '__action'}
+                            onClick={() => key && setTradeSort(prev => toggleSort(prev, key as keyof TradeSignal))}
+                            className={`whitespace-nowrap px-2 py-2 font-medium select-none ${key ? 'cursor-pointer hover:text-white' : ''}`}
+                          >
+                            {label}
+                            {key && <SortIcon active={tradeSort.key === key} dir={tradeSort.dir} />}
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-700/60">
                       {tradeSignals.map((row) => (
                         <tr key={row.ticker} className="hover:bg-slate-800/50">
-                          <td className="whitespace-nowrap px-3 py-2.5 font-bold text-white">{row.ticker.replace('.NS', '')}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5"><VerdictBadge verdict={row.verdict} /></td>
-                          <td className="whitespace-nowrap px-3 py-2.5"><SignalTypeBadge type={row.signal_type} /></td>
-                          <td className="whitespace-nowrap px-3 py-2.5">
+                          <td className="whitespace-nowrap px-2 py-2 font-bold text-white">{row.ticker.replace('.NS', '')}</td>
+                          <td className="whitespace-nowrap px-2 py-2"><VerdictBadge verdict={row.verdict} /></td>
+                          <td className="whitespace-nowrap px-2 py-2"><SignalTypeBadge type={row.signal_type} /></td>
+                          <td className="whitespace-nowrap px-2 py-2">
                             <span className={`inline-flex min-w-[3rem] justify-center rounded-md px-2 py-0.5 text-xs font-semibold ${scoreBadgeClass(row.trade_score)}`}>
                               {fmt(row.trade_score)}
                             </span>
                           </td>
-                          <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-300">{fmt(row.technical_score)}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-300">{fmt(row.entry_price)}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-emerald-400">{fmt(row.target_price)}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-rose-400">{fmt(row.stop_loss)}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-300">{fmt(row.risk_reward)}</td>
-                          <td className={`whitespace-nowrap px-3 py-2.5 tabular-nums ${rsiTextClass(row.rsi)}`}>{fmt(row.rsi)}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-300">{fmt(row.volume_ratio)}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-300">{fmt(row.atr14)}</td>
-                          <td className="whitespace-nowrap px-3 py-2.5">
+                          <td className="whitespace-nowrap px-2 py-2 tabular-nums text-slate-300">{fmt(row.technical_score)}</td>
+                          <td className="whitespace-nowrap px-2 py-2 tabular-nums text-slate-300">{fmt(row.entry_price)}</td>
+                          <td className="whitespace-nowrap px-2 py-2 tabular-nums text-emerald-400">{fmt(row.target_price)}</td>
+                          <td className="whitespace-nowrap px-2 py-2 tabular-nums text-rose-400">{fmt(row.stop_loss)}</td>
+                          <td className="whitespace-nowrap px-2 py-2 tabular-nums text-slate-300">{fmt(row.risk_reward)}</td>
+                          <td className={`whitespace-nowrap px-2 py-2 tabular-nums ${rsiTextClass(row.rsi)}`}>{fmt(row.rsi)}</td>
+                          <td className="whitespace-nowrap px-2 py-2 tabular-nums text-slate-300">{fmt(row.volume_ratio)}</td>
+                          <td className="whitespace-nowrap px-2 py-2 tabular-nums text-slate-300">{fmt(row.atr14)}</td>
+                          <td className="whitespace-nowrap px-2 py-2">
                             <button
                               type="button"
                               onClick={() => { setAddTradeSignal(row); setTradeSaved(false) }}
@@ -945,7 +980,7 @@ export default function App() {
 
       {/* ── FOOTER ── */}
       <footer className="mt-6 border-t border-slate-700/80 bg-slate-900/50 px-4 py-4 sm:px-6">
-        <div className="mx-auto flex items-center justify-between">
+        <div className="mx-auto w-full flex items-center justify-between">
           <div className="flex items-center gap-4">
             <span className="text-xs text-slate-500">Check out:</span>
             <a href="https://www.instagram.com/syro.ig/" target="_blank" rel="noopener noreferrer"
@@ -965,7 +1000,6 @@ export default function App() {
         </div>
       </footer>
 
-      {/* ── ADD TRADE DRAWER (shared by both modes) ── */}
       {addTradeSignal && (
         <AddTradeDrawer
           signal={addTradeSignal}
