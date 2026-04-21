@@ -108,3 +108,9 @@ export interface ActiveTrade {
   exit_date: string | null
   pnl: number | null
 }
+
+export interface ScoreLookupResponse {
+  invest: ScoreItem | null
+  trade: TradeSignal | null
+  error: string | null
+}
