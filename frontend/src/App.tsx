@@ -5,20 +5,21 @@ import type {
   ChecklistResponse,
   MarketSentiment,
   ScoreItem,
+  ScoreLookupResponse,
   SummaryResponse,
   TradeSignal,
 } from './types'
 
 const API_BASE = 'https://stock-advisor-sw3d.onrender.com'
 
-type AppMode = 'INVEST' | 'TRADE'
+type AppMode = 'LOOKUP' | 'INVEST' | 'TRADE'
 type VerdictTab = 'BUY' | 'WATCHLIST' | 'AVOID'
 type TradeTab = 'STRONG_BUY' | 'BUY' | 'WATCHLIST' | 'AVOID'
 
 // ─── FORMATTERS ───────────────────────────────────────────────────────────────
 
 function fmt(n: number | null | undefined, decimals = 2): string {
-  if (n === null || n === undefined) return '—'
+  if (n === null || n === undefined) return '-'
   return n.toFixed(decimals)
 }
 
@@ -122,7 +123,7 @@ function VerdictBadge({ verdict }: { verdict: string }) {
 }
 
 function SignalTypeBadge({ type }: { type: string | null }) {
-  if (!type) return <span className="text-slate-500">—</span>
+  if (!type) return <span className="text-slate-500">-</span>
   const cls: Record<string, string> = {
     BREAKOUT: 'bg-violet-500/15 text-violet-400',
     MOMENTUM: 'bg-blue-500/15 text-blue-400',
@@ -146,9 +147,9 @@ function overallBanner(overall: string): { bg: string; text: string; label: stri
   switch (overall) {
     case 'CLEAR':               return { bg: 'bg-emerald-500/15 border-emerald-500/30', text: 'text-emerald-400', label: '✅ Clear to trade' }
     case 'CAUTION':             return { bg: 'bg-amber-500/15 border-amber-500/30',     text: 'text-amber-400',   label: '⚠️ Proceed with caution' }
-    case 'HIGH_RISK':           return { bg: 'bg-rose-500/15 border-rose-500/30',       text: 'text-rose-400',    label: '🚨 High risk — review all flags' }
-    case 'POOR_RISK_REWARD':    return { bg: 'bg-rose-500/15 border-rose-500/30',       text: 'text-rose-400',    label: '🚫 Poor risk/reward — do not trade' }
-    case 'MARKET_UNFAVOURABLE': return { bg: 'bg-rose-500/15 border-rose-500/30',       text: 'text-rose-400',    label: '🌧️ Market unfavourable — avoid new entries' }
+    case 'HIGH_RISK':           return { bg: 'bg-rose-500/15 border-rose-500/30',       text: 'text-rose-400',    label: '🚨 High risk - review all flags' }
+    case 'POOR_RISK_REWARD':    return { bg: 'bg-rose-500/15 border-rose-500/30',       text: 'text-rose-400',    label: '🚫 Poor risk/reward - do not trade' }
+    case 'MARKET_UNFAVOURABLE': return { bg: 'bg-rose-500/15 border-rose-500/30',       text: 'text-rose-400',    label: '🌧️ Market unfavourable - avoid new entries' }
     default:                    return { bg: 'bg-slate-700/50 border-slate-600',        text: 'text-slate-400',   label: overall }
   }
 }
@@ -217,7 +218,7 @@ function SentimentBar({ sentiment }: { sentiment: MarketSentiment }) {
       </div>
       {sentiment.sentiment_score < 5 && (
         <div className="rounded border border-rose-500/30 bg-rose-950/30 px-3 py-2 text-xs text-rose-400">
-          ⚠️ Market conditions unfavourable. All signals carry elevated risk — trade smaller or wait.
+          ⚠️ Market conditions unfavourable. All signals carry elevated risk - trade smaller or wait.
         </div>
       )}
     </div>
@@ -566,6 +567,12 @@ function AddTradeDrawer({
 export default function App() {
   const [mode, setMode] = useState<AppMode>('INVEST')
 
+  // Lookup mode state
+  const [lookupTicker, setLookupTicker] = useState('')
+  const [lookupResults, setLookupResults] = useState<ScoreLookupResponse | null>(null)
+  const [lookupLoading, setLookupLoading] = useState(false)
+  const [lookupError, setLookupError] = useState<string | null>(null)
+
   // Invest mode state
   const [summary, setSummary] = useState<SummaryResponse | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(true)
@@ -594,6 +601,38 @@ export default function App() {
   const [addTradeSignal, setAddTradeSignal] = useState<TradeSignal | null>(null)
   const [fetchingSignal, setFetchingSignal] = useState<string | null>(null)
   const [tradeSaved, setTradeSaved] = useState(false)
+
+  // Lookup handler
+  async function handleLookup(ticker: string) {
+    if (!ticker.trim()) return
+    
+    setLookupLoading(true)
+    setLookupError(null)
+    
+    const cleanTicker = ticker.toUpperCase().trim()
+    
+    try {
+      const [investRes, tradeRes] = await Promise.allSettled([
+        axios.get<ScoreItem>(`${API_BASE}/api/scores/${cleanTicker}`),
+        axios.get<TradeSignal>(`${API_BASE}/api/trade/scores/${cleanTicker}`),
+      ])
+      
+      const invest = investRes.status === 'fulfilled' ? investRes.value.data : null
+      const trade = tradeRes.status === 'fulfilled' ? tradeRes.value.data : null
+      
+      if (!invest && !trade) {
+        setLookupError(`${cleanTicker} not found in either mode`)
+        setLookupResults(null)
+      } else {
+        setLookupResults({ invest, trade, error: null })
+      }
+    } catch (err) {
+      setLookupError('Lookup failed')
+      setLookupResults(null)
+    } finally {
+      setLookupLoading(false)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -722,16 +761,16 @@ export default function App() {
               </p>
             </div>
             <div className="ml-2 flex rounded-lg bg-slate-800 p-0.5 ring-1 ring-slate-700">
-              {(['INVEST', 'TRADE'] as AppMode[]).map((m) => (
+              {(['LOOKUP', 'INVEST', 'TRADE'] as AppMode[]).map((m) => (
                 <button
                   key={m}
                   type="button"
                   onClick={() => setMode(m)}
-                  className={`rounded-md px-4 py-1.5 text-xs font-semibold transition ${
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
                     mode === m ? 'bg-slate-600 text-white shadow' : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  {m === 'INVEST' ? '📈 INVEST' : '⚡ TRADE'}
+                  {m === 'LOOKUP' ? '🔍 LOOKUP' : m === 'INVEST' ? '📈 INVEST' : '⚡ TRADE'}
                 </button>
               ))}
             </div>
@@ -779,6 +818,118 @@ export default function App() {
       {/* ── MAIN ── */}
       <div className="mx-auto w-full flex-1 px-4 py-6 sm:px-6">
 
+        {/* ── LOOKUP MODE ── */}
+        {mode === 'LOOKUP' && (
+          <div className="mx-auto max-w-2xl space-y-6">
+            {/* Search Bar */}
+            <div className="rounded-xl border border-slate-700/80 bg-slate-900/40 p-6">
+              <label className="mb-3 block text-sm font-semibold text-slate-300">
+                Enter a ticker to see both INVEST and TRADE scores
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={lookupTicker}
+                  onChange={(e) => setLookupTicker(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleLookup(lookupTicker)}
+                  placeholder="e.g. RELIANCE, TCS, INFY"
+                  className="flex-1 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2.5 text-white placeholder-slate-500 focus:border-emerald-500/50 focus:outline-none"
+                />
+                <button
+                  onClick={() => handleLookup(lookupTicker)}
+                  disabled={lookupLoading || !lookupTicker.trim()}
+                  className="rounded-lg bg-emerald-600 px-6 py-2.5 font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {lookupLoading ? '...' : 'Search'}
+                </button>
+              </div>
+            </div>
+
+            {/* Error */}
+            {lookupError && (
+              <div className="rounded-lg border border-rose-500/40 bg-rose-950/40 px-4 py-3 text-sm text-rose-300">
+                {lookupError}
+              </div>
+            )}
+
+            {/* Results */}
+            {lookupResults && (
+              <div className="space-y-4">
+                <div className="text-sm font-semibold text-slate-300">
+                  Results for <span className="text-white">{lookupTicker.toUpperCase()}</span>
+                </div>
+
+                {/* Invest Mode */}
+                {lookupResults.invest ? (
+                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-5">
+                    <div className="mb-4 flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-emerald-400">INVEST MODE</h3>
+                      <VerdictBadge verdict={lookupResults.invest.verdict} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div><span className="text-slate-500">Final Score</span> <div className="font-semibold text-white">{fmt(lookupResults.invest.final_score)}/10</div></div>
+                      <div><span className="text-slate-500">Quality</span> <div className="font-semibold text-white">{fmt(lookupResults.invest.business_quality_score)}</div></div>
+                      <div><span className="text-slate-500">Valuation</span> <div className="font-semibold text-white">{fmt(lookupResults.invest.valuation_score)}</div></div>
+                      <div><span className="text-slate-500">Technical</span> <div className="font-semibold text-white">{fmt(lookupResults.invest.technical_score)}</div></div>
+                      <div><span className="text-slate-500">Entry</span> <div className="font-semibold text-emerald-400">₹{fmt(lookupResults.invest.entry_price)}</div></div>
+                      <div><span className="text-slate-500">Target</span> <div className="font-semibold text-emerald-400">₹{fmt(lookupResults.invest.target_price)}</div></div>
+                      <div><span className="text-slate-500">Stop Loss</span> <div className="font-semibold text-rose-400">₹{fmt(lookupResults.invest.stop_loss)}</div></div>
+                      <div><span className="text-slate-500">R/R</span> <div className="font-semibold text-white">{fmt(lookupResults.invest.risk_reward)}</div></div>
+                      <div><span className="text-slate-500">ROE</span> <div className="font-semibold text-white">{fmt(lookupResults.invest.roe)}%</div></div>
+                      <div><span className="text-slate-500">Promoter Hold</span> <div className="font-semibold text-white">{fmt(lookupResults.invest.promoter_holding)}%</div></div>
+                    </div>
+                    <button
+                      onClick={() => { setMode('INVEST'); setActiveTab('BUY') }}
+                      className="mt-4 text-xs font-semibold text-emerald-400 underline hover:text-emerald-300"
+                    >
+                      View full INVEST table →
+                    </button>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-slate-700/60 bg-slate-800/40 px-4 py-3 text-xs text-slate-500">
+                    Not in INVEST universe (quality filter or Nifty 50)
+                  </div>
+                )}
+
+                {/* Trade Mode */}
+                {lookupResults.trade ? (
+                  <div className="rounded-xl border border-violet-500/30 bg-violet-950/20 p-5">
+                    <div className="mb-4 flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-violet-400">TRADE MODE</h3>
+                      <div className="flex gap-2">
+                        <VerdictBadge verdict={lookupResults.trade.verdict} />
+                        <SignalTypeBadge type={lookupResults.trade.signal_type} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div><span className="text-slate-500">Trade Score</span> <div className="font-semibold text-white">{fmt(lookupResults.trade.trade_score)}/10</div></div>
+                      <div><span className="text-slate-500">Technical</span> <div className="font-semibold text-white">{fmt(lookupResults.trade.technical_score)}</div></div>
+                      <div><span className="text-slate-500">Sentiment</span> <div className="font-semibold text-white">{fmt(lookupResults.trade.sentiment_score)}</div></div>
+                      <div><span className="text-slate-500">Valuation</span> <div className="font-semibold text-white">{fmt(lookupResults.trade.valuation_score)}</div></div>
+                      <div><span className="text-slate-500">Entry</span> <div className="font-semibold text-emerald-400">₹{fmt(lookupResults.trade.entry_price)}</div></div>
+                      <div><span className="text-slate-500">Target</span> <div className="font-semibold text-emerald-400">₹{fmt(lookupResults.trade.target_price)}</div></div>
+                      <div><span className="text-slate-500">Stop Loss</span> <div className="font-semibold text-rose-400">₹{fmt(lookupResults.trade.stop_loss)}</div></div>
+                      <div><span className="text-slate-500">R/R</span> <div className="font-semibold text-white">{fmt(lookupResults.trade.risk_reward)}</div></div>
+                      <div><span className="text-slate-500">RSI</span> <div className={`font-semibold ${rsiTextClass(lookupResults.trade.rsi)}`}>{fmt(lookupResults.trade.rsi)}</div></div>
+                      <div><span className="text-slate-500">ATR14</span> <div className="font-semibold text-white">{fmt(lookupResults.trade.atr14)}</div></div>
+                    </div>
+                    <button
+                      onClick={() => { setMode('TRADE'); setTradeTab('BUY') }}
+                      className="mt-4 text-xs font-semibold text-violet-400 underline hover:text-violet-300"
+                    >
+                      View full TRADE table →
+                    </button>
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-slate-700/60 bg-slate-800/40 px-4 py-3 text-xs text-slate-500">
+                    Not in TRADE universe (liquidity &lt; ₹10cr avg daily volume)
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── INVEST MODE ── */}
         {mode === 'INVEST' && (
           <>
@@ -809,7 +960,7 @@ export default function App() {
               {scoresLoading ? (
                 <div className="flex min-h-[240px] flex-col items-center justify-center gap-3 py-16">
                   <Spinner />
-                  <p className="animate-pulse text-xs text-slate-500">Loading stocks — may take a moment on first load...</p>
+                  <p className="animate-pulse text-xs text-slate-500">Loading stocks - may take a moment on first load...</p>
                 </div>
               ) : investScores.length === 0 ? (
                 <div className="flex min-h-[240px] flex-col items-center justify-center gap-2 py-16 text-slate-500">
@@ -837,7 +988,7 @@ export default function App() {
                       {investScores.map((row) => (
                         <tr key={row.ticker} className="hover:bg-slate-800/50">
                           <td className="whitespace-nowrap px-2 py-2 font-bold text-white">{row.ticker}</td>
-                          <td className="max-w-[120px] truncate px-2 py-2 text-slate-300">{row.sector ?? '—'}</td>
+                          <td className="max-w-[120px] truncate px-2 py-2 text-slate-300">{row.sector ?? '-'}</td>
                           <td className="whitespace-nowrap px-2 py-2">
                             <span className={`inline-flex min-w-[3rem] justify-center rounded-md px-2 py-0.5 text-xs font-semibold ${scoreBadgeClass(row.final_score)}`}>
                               {fmt(row.final_score)}
